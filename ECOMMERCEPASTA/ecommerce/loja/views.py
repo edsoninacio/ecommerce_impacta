@@ -1,5 +1,6 @@
 from django.shortcuts import render, redirect
 from .models import *
+import uuid
 
 # Create your views here.
 def homepage(request):
@@ -41,16 +42,22 @@ def adicionar_carrinho(request, id_produto):
         if not tamanho:
             return redirect('loja')
         # pegar o cliente
+        resposta = redirect('carrinho')
         if request.user.is_authenticated:
             cliente = request.user.cliente
         else:
-            return redirect('loja')
+            if request.COOKIES.get("id_sessao"):
+                id_sessao = request.COOKIES.get("id_sessao")
+            else:
+                id_sessao = str(uuid.uuid4())
+                resposta.set_cookie(key="id_sessao", value=id_sessao, max_age=60*60*24*30)
+            cliente, criado = Cliente.objects.get_or_create(id_sessao=id_sessao)
         pedido, criado = Pedido.objects.get_or_create(cliente=cliente, finalizado=False)
         item_estoque = ItemEstoque.objects.get(produto__id=id_produto, tamanho=tamanho, cor__id=id_cor)
         item_pedido, criado = ItensPedido.objects.get_or_create(item_estoque=item_estoque, pedido=pedido)
         item_pedido.quantidade += 1
         item_pedido.save()
-        return redirect('carrinho')
+        return resposta
     else:
         return redirect('loja')
     
@@ -64,7 +71,11 @@ def remover_carrinho(request, id_produto):
         if request.user.is_authenticated:
             cliente = request.user.cliente
         else:
-            return redirect('loja')
+            if request.COOKIES.get("id_sessao"):
+                id_sessao = request.COOKIES.get("id_sessao")
+                cliente, criado = Cliente.objects.get_or_create(id_sessao=id_sessao)
+            else:
+                return redirect('loja')
         pedido, criado = Pedido.objects.get_or_create(cliente=cliente, finalizado=False)
         item_estoque = ItemEstoque.objects.get(produto__id=id_produto, tamanho=tamanho, cor__id=id_cor)
         item_pedido, criado = ItensPedido.objects.get_or_create(item_estoque=item_estoque, pedido=pedido)
@@ -79,14 +90,35 @@ def remover_carrinho(request, id_produto):
 def carrinho(request):
     if request.user.is_authenticated:
         cliente = request.user.cliente
+    else:
+        if request.COOKIES.get("id_sessao"):
+            id_sessao = request.COOKIES.get("id_sessao")
+            cliente, criado = Cliente.objects.get_or_create(id_sessao=id_sessao)
+        else:
+            context = {"cliente_existente": False, "itens_pedido": None, "pedido": None}
+            return render(request, 'carrinho.html', context)
     pedido, criado = Pedido.objects.get_or_create(cliente=cliente, finalizado=False)
     itens_pedido = ItensPedido.objects.filter(pedido=pedido)
-    context = {"itens_pedido": itens_pedido, "pedido": pedido}
+    context = {"itens_pedido": itens_pedido, "pedido": pedido, "cliente_existente": True}
     return render(request, 'carrinho.html', context)
 
 def checkout(request):
-    return render(request, 'checkout.html')
+    if request.user.is_authenticated:
+        cliente = request.user.cliente
+    else:
+        if request.COOKIES.get("id_sessao"):
+            id_sessao = request.COOKIES.get("id_sessao")
+            cliente, criado = Cliente.objects.get_or_create(id_sessao=id_sessao)
+        else:
+            return redirect('loja')
+    pedido, criado = Pedido.objects.get_or_create(cliente=cliente, finalizado=False)
+    enderecos = Endereco.objects.filter(cliente=cliente)
+    context = {"pedido": pedido, "enderecos": enderecos}
+    return render(request, 'checkout.html', context)
 
+def adicionar_endereco(request):
+    context = {}
+    return render(request, "adicionar_endereco.html", context)
 
 def minha_conta(request):
     return render(request, 'usuario/minha_conta.html')
