@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from .models import *
 import uuid
+from .utils import filtrar_produtos
 
 # Create your views here.
 def homepage(request):
@@ -8,10 +9,10 @@ def homepage(request):
     context = {"banners": banners}
     return render(request, 'homepage.html', context)
 
-def loja(request, nome_categoria=None):
+def loja(request, filtro=None):
     produtos = Produto.objects.filter(ativo=True)
-    if nome_categoria:
-        produtos = produtos.filter(categoria__nome=nome_categoria)
+    produtos = filtrar_produtos(produtos, filtro)
+    
     context = {"produtos": produtos}
     return render(request, 'loja.html', context)
 
@@ -117,8 +118,25 @@ def checkout(request):
     return render(request, 'checkout.html', context)
 
 def adicionar_endereco(request):
-    context = {}
-    return render(request, "adicionar_endereco.html", context)
+    if request.method == "POST":
+        # tratar o envio do formulario
+        if request.user.is_authenticated:
+            cliente = request.user.cliente
+        else:
+            if request.COOKIES.get("id_sessao"):
+                id_sessao = request.COOKIES.get("id_sessao")
+                cliente, criado = Cliente.objects.get_or_create(id_sessao=id_sessao)
+            else:
+                return redirect('loja')
+        dados = request.POST.dict()
+        endereco = Endereco.objects.create(cliente=cliente, rua=dados.get("rua"), numero=int(dados.get("numero")),
+                                           estado=dados.get("estado"), cidade=dados.get("cidade"), 
+                                           cep=dados.get("cep"), complemento=dados.get("complemento"))
+        endereco.save()
+        return redirect("checkout")
+    else:
+        context = {}
+        return render(request, "adicionar_endereco.html", context)
 
 def minha_conta(request):
     return render(request, 'usuario/minha_conta.html')
