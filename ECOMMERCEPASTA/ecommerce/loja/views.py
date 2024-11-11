@@ -230,5 +230,7 @@ def criar_conta(request):
     context = {"erro": erro}
     return render(request, "usuario/criar_conta.html", context)
 
-# TODO sempre que o usuario criar uma conta no nosso site a gente vai criar um cliente para ele
 
+def fazer_logout(request):
+    logout(request)
+    return redirect("fazer_login")
